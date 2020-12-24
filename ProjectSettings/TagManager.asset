@@ -1,0 +1,58 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!78 &1
+TagManager:
+  serializedVersion: 2
+  tags:
+  - DialogueText
+  - NameText
+  - ActorContainer
+  layers:
+  - Default
+  - TransparentFX
+  - Ignore Raycast
+  - 
+  - Water
+  - UI
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  m_SortingLayers:
+  - name: Default
+    uniqueID: 0
+    locked: 0
+  - name: UI/Props
+    uniqueID: 2558329149
+    locked: 0
+  - name: UI/Nonspeaker
+    uniqueID: 1552937061
+    locked: 0
+  - name: UI/Speaker
+    uniqueID: 305380633
+    locked: 0
+  - name: UI/Interface
+    uniqueID: 410215017
+    locked: 0
