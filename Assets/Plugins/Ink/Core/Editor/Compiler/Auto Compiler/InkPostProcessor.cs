@@ -12,9 +12,10 @@ namespace Ink.UnityIntegration {
 		// This queue tells the compiler which files to recompile after moves have completed.
 		// Not a perfect solution - If Unity doesn't move all the files in the same attempt you can expect some error messages to appear on compile.
 		private static List<string> queuedMovedAssets = new List<string>();
-
+		public static bool disabled = false;
 		// Recompiles any ink files as a result of an ink file (re)import
 		private static void OnPostprocessAllAssets (string[] importedAssets, string[] deletedAssets, string[] movedAssets, string[] movedFromAssetPaths) {
+			if(disabled) return;
 			if(deletedAssets.Length > 0) {
 				OnDeleteAssets(deletedAssets);
 			}
@@ -24,14 +25,16 @@ namespace Ink.UnityIntegration {
 			if(importedAssets.Length > 0) {
 				OnImportAssets(importedAssets);
 			}
+            #if !UNITY_2020_1_OR_NEWER
 			if(InkLibrary.created)
-				InkLibrary.Clean();
+            #endif
+            InkLibrary.Clean();
 		}
 
 		private static void OnDeleteAssets (string[] deletedAssets) {
 			bool deletedInk = false;
 			foreach (var deletedAssetPath in deletedAssets) {
-				if(Path.GetExtension(deletedAssetPath) == InkEditorUtils.inkFileExtension) {
+				if(InkEditorUtils.IsInkFile(deletedAssetPath)) {
 					deletedInk = true;
 					break;
 				}
@@ -42,13 +45,16 @@ namespace Ink.UnityIntegration {
 //			bool alsoDeleteJSON = false;
 //			alsoDeleteJSON = EditorUtility.DisplayDialog("Deleting .ink file", "Also delete the JSON file associated with the deleted .ink file?", "Yes", "No"));
 			List<InkFile> masterFilesAffected = new List<InkFile>();
-			for (int i = InkLibrary.Instance.inkLibrary.Count - 1; i >= 0; i--) {
-				if(InkLibrary.Instance.inkLibrary [i].inkAsset == null) {
-					if(!InkLibrary.Instance.inkLibrary[i].metaInfo.isMaster && InkLibrary.Instance.inkLibrary[i].metaInfo.masterInkAsset != null && !masterFilesAffected.Contains(InkLibrary.Instance.inkLibrary[i].metaInfo.masterInkFile)) {
-						masterFilesAffected.Add(InkLibrary.Instance.inkLibrary[i].metaInfo.masterInkFile);
+			for (int i = InkLibrary.instance.inkLibrary.Count - 1; i >= 0; i--) {
+				if(InkLibrary.instance.inkLibrary [i].inkAsset == null) {
+					if(!InkLibrary.instance.inkLibrary[i].isMaster) {
+						foreach(var masterInkFile in InkLibrary.instance.inkLibrary[i].masterInkFiles) {
+							if(!masterFilesAffected.Contains(masterInkFile))
+								masterFilesAffected.Add(masterInkFile);
+						}
 					}
-					if(InkSettings.Instance.handleJSONFilesAutomatically) {
-                        var assetPath = AssetDatabase.GetAssetPath(InkLibrary.Instance.inkLibrary[i].jsonAsset);
+					if(InkSettings.instance.handleJSONFilesAutomatically) {
+                        var assetPath = AssetDatabase.GetAssetPath(InkLibrary.instance.inkLibrary[i].jsonAsset);
 						if(assetPath != null && assetPath != string.Empty) {
                             AssetDatabase.DeleteAsset(assetPath);
                         }
@@ -57,23 +63,23 @@ namespace Ink.UnityIntegration {
 				}
 			}
 			// After deleting files, we might have broken some include references, so we rebuild them. There's probably a faster way to do this, or we could probably just remove any null references, but this is a bit more robust.
-			foreach(InkFile inkFile in InkLibrary.Instance.inkLibrary) {
-				inkFile.metaInfo.FindIncludedFiles();
+			foreach(InkFile inkFile in InkLibrary.instance.inkLibrary) {
+				inkFile.FindIncludedFiles();
 			}
 			foreach(InkFile masterFile in masterFilesAffected) {
-				if(InkSettings.Instance.compileAutomatically || masterFile.compileAutomatically) {
+				if(InkSettings.instance.compileAutomatically || masterFile.compileAutomatically) {
 					InkCompiler.CompileInk(masterFile);
 				}
 			}
 		}
 
 		private static void OnMoveAssets (string[] movedAssets) {
-			if (!InkSettings.Instance.handleJSONFilesAutomatically) 
+			if (!InkSettings.instance.handleJSONFilesAutomatically) 
 				return;
 			
 			List<string> validMovedAssets = new List<string>();
 			for (var i = 0; i < movedAssets.Length; i++) {
-				if(Path.GetExtension(movedAssets[i]) != InkEditorUtils.inkFileExtension) 
+				if(!InkEditorUtils.IsInkFile(movedAssets[i]))
 					continue;
 				validMovedAssets.Add(movedAssets[i]);
 				queuedMovedAssets.Add(movedAssets[i]);
@@ -104,37 +110,31 @@ namespace Ink.UnityIntegration {
 				foreach(var inkFilePath in queuedMovedAssets) {
 					InkFile inkFile = InkLibrary.GetInkFileWithPath(inkFilePath);
 					if(inkFile == null) continue;
-
-					InkFile masterInkFile = inkFile;
-					if(!inkFile.metaInfo.isMaster)
-						masterInkFile = inkFile.metaInfo.masterInkFile;
-					
-					if(!filesToCompile.Contains(masterInkFile))
-						filesToCompile.Add(masterInkFile);
+					foreach(var masterInkFile in inkFile.masterInkFilesIncludingSelf) {
+						if(!filesToCompile.Contains(inkFile))
+							filesToCompile.Add(inkFile);
+					}
 				}
 
-				InkMetaLibrary.RebuildInkFileConnections();
+				InkLibrary.RebuildInkFileConnections();
 
 				// Add the new file to be recompiled
 				foreach(var inkFilePath in queuedMovedAssets) {
 					InkFile inkFile = InkLibrary.GetInkFileWithPath(inkFilePath);
 					if(inkFile == null) continue;
 
-					InkFile masterInkFile = inkFile;
-					if(!inkFile.metaInfo.isMaster)
-						masterInkFile = inkFile.metaInfo.masterInkFile;
-					
-					if(!filesToCompile.Contains(masterInkFile))
-						filesToCompile.Add(masterInkFile);
-					
+					foreach(var masterInkFile in inkFile.masterInkFilesIncludingSelf) {
+						if(!filesToCompile.Contains(inkFile))
+							filesToCompile.Add(inkFile);
+					}
 				}
 
 				queuedMovedAssets.Clear();
 
 				// Compile any ink files that are deemed master files a rebuild
 				foreach(var inkFile in filesToCompile) {
-					if(inkFile.metaInfo.isMaster) {
-						if(InkSettings.Instance.compileAutomatically || inkFile.compileAutomatically) {
+					if(inkFile.isMaster) {
+						if(InkSettings.instance.compileAutomatically || inkFile.compileAutomatically) {
 							InkCompiler.CompileInk(inkFile);
 						}
 					}
@@ -146,18 +146,10 @@ namespace Ink.UnityIntegration {
 			List<string> importedInkAssets = new List<string>();
 			string inklecateFileLocation = null;
 			foreach (var importedAssetPath in importedAssets) {
-				if(Path.GetExtension(importedAssetPath) == InkEditorUtils.inkFileExtension) 
+				if(InkEditorUtils.IsInkFile(importedAssetPath))
 					importedInkAssets.Add(importedAssetPath);
 				else if (Path.GetFileName(importedAssetPath) == "inklecate" && Path.GetExtension(importedAssetPath) == "")
 					inklecateFileLocation = importedAssetPath;
-				else if (Path.GetExtension(importedAssetPath) == ".asset") {
-					var obj = AssetDatabase.LoadAssetAtPath<ScriptableObject>(importedAssetPath);
-					if(obj is InkSettings) {
-						InkEditorUtils.DeleteAllButOldestScriptableObjects(AssetDatabase.FindAssets("t:"+typeof(InkSettings).Name), typeof(InkSettings).Name);
-					} else if(obj is InkLibrary) {
-						InkEditorUtils.DeleteAllButOldestScriptableObjects(AssetDatabase.FindAssets("t:"+typeof(InkLibrary).Name), typeof(InkLibrary).Name);
-					}
-				}
 			}
 			if(importedInkAssets.Count > 0)
 				PostprocessInkFiles(importedInkAssets);
@@ -173,15 +165,13 @@ namespace Ink.UnityIntegration {
 		}
 
 		private static void PostprocessInkFiles (List<string> importedInkAssets) {
-			if(EditorApplication.isPlaying && InkSettings.Instance.delayInPlayMode) {
+			if(EditorApplication.isPlaying && InkSettings.instance.delayInPlayMode) {
 				foreach(var fileToImport in importedInkAssets) {
-					if(!InkLibrary.Instance.pendingCompilationStack.Contains(fileToImport))
-						InkLibrary.Instance.pendingCompilationStack.Add(fileToImport);
+					InkCompiler.AddToPendingCompilationStack(fileToImport);
 				}
 			} else {
 				InkLibrary.CreateOrReadUpdatedInkFiles (importedInkAssets);
-				foreach (var inkAssetToCompile in InkCompiler.GetUniqueMasterInkFilesToCompile (importedInkAssets))
-					InkCompiler.CompileInk(inkAssetToCompile);
+				InkCompiler.CompileInk(InkCompiler.GetUniqueMasterInkFilesToCompile (importedInkAssets).ToArray());
 			}
 		}
 	}

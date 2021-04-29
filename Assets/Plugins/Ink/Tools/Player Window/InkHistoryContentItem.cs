@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using Ink.Runtime;
 using UnityEngine;
 
@@ -18,6 +19,7 @@ namespace Ink.UnityIntegration.Debugging {
         }
 
         public string content;
+        public List<string> tags;
         public ContentType contentType;
         [SerializeField]
         JsonDateTime _time;
@@ -34,9 +36,15 @@ namespace Ink.UnityIntegration.Debugging {
             this.contentType = contentType;
             this.time = DateTime.Now;
         }
+        InkHistoryContentItem (string text, List<string> tags, ContentType contentType) {
+            this.content = text;
+            this.tags = tags;
+            this.contentType = contentType;
+            this.time = DateTime.Now;
+        }
 
-        public static InkHistoryContentItem CreateForContent (string choiceText) {
-            return new InkHistoryContentItem(choiceText, InkHistoryContentItem.ContentType.PresentedContent);
+        public static InkHistoryContentItem CreateForContent (string choiceText, List<string> tags) {
+            return new InkHistoryContentItem(choiceText, tags, InkHistoryContentItem.ContentType.PresentedContent);
         }
         public static InkHistoryContentItem CreateForPresentChoice (Choice choice) {
             return new InkHistoryContentItem(choice.text.Trim(), InkHistoryContentItem.ContentType.PresentedChoice);
@@ -62,15 +70,15 @@ namespace Ink.UnityIntegration.Debugging {
         public static InkHistoryContentItem CreateForDebugNote (string choiceText) {
             return new InkHistoryContentItem(choiceText, InkHistoryContentItem.ContentType.DebugNote);
         }
-        
+
         struct JsonDateTime {
             public long value;
             public static implicit operator DateTime(JsonDateTime jdt) {
-                return DateTime.FromFileTimeUtc(jdt.value);
+                return DateTime.FromFileTime(jdt.value);
             }
             public static implicit operator JsonDateTime(DateTime dt) {
                 JsonDateTime jdt = new JsonDateTime();
-                jdt.value = dt.ToFileTimeUtc();
+                jdt.value = dt.ToFileTime();
                 return jdt;
             }
         }

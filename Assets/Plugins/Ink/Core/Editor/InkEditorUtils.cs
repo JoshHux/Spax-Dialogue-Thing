@@ -11,7 +11,6 @@ using UnityEditor.Callbacks;
 using Path = System.IO.Path;
 
 namespace Ink.UnityIntegration {
-
 	class CreateInkAssetAction : EndNameEditAction {
 		public override void Action(int instanceId, string pathName, string resourceFile) {
 			var text = "";
@@ -41,9 +40,41 @@ namespace Ink.UnityIntegration {
 		public const string inkFileExtension = ".ink";
 		const string lastCompileTimeKey = "InkIntegrationLastCompileTime";
 
+		
+		// When compiling we call AssetDatabase.DisallowAutoRefresh. 
+		// We NEED to remember to re-allow it or unity stops registering file changes!
+		// The issue is that you need to pair calls perfectly, and you can't even use a try-catch to get around it.
+		// So - we cache if we've disabled auto refresh here, since this persists across plays.
+		// This does have one issue - this setting is saved even when unity re-opens, but the internal asset refresh state isn't.
+		// We need this to reset on launching the editor.
+		// We currently fix this by setting it false on InkEditorUtils.OnOpenUnityEditor
+		// A potentially better approach is to use playerprefs for this, since it's really nothing to do with the library.
+		public static bool disallowedAutoRefresh {
+			get {
+				if(EditorPrefs.HasKey("InkLibraryDisallowedAutoRefresh")) 
+					return EditorPrefs.GetBool("InkLibraryDisallowedAutoRefresh");
+				return false;
+			} set {
+				EditorPrefs.SetBool("InkLibraryDisallowedAutoRefresh", value);
+			}
+		}
+
+		// This should run before any of the other ink integration scripts.
 		static InkEditorUtils () {
+			EnsureFirstLaunchHandled();
+			EditorApplication.wantsToQuit += WantsToQuit;
+		}
+
+		// Save the current EditorApplication.timeSinceStartup so OnOpenUnityEditor is sure to run next time the editor opens. 
+		static bool WantsToQuit () {
+			LoadAndSaveLastCompileTime();
+			return true;
+		}
+		public static bool isFirstCompile;
+		static void EnsureFirstLaunchHandled () {
 			float lastCompileTime = LoadAndSaveLastCompileTime();
-			if(EditorApplication.timeSinceStartup < lastCompileTime)
+			isFirstCompile = EditorApplication.timeSinceStartup < lastCompileTime;
+			if(isFirstCompile)
 				OnOpenUnityEditor();
 		}
 
@@ -56,15 +87,15 @@ namespace Ink.UnityIntegration {
 		}
 
 		static void OnOpenUnityEditor () {
-			InkLibrary.Rebuild();
+			disallowedAutoRefresh = false;
 		}
 
-		[MenuItem("Assets/Rebuild Ink Library", false, 60)]
+		[MenuItem("Assets/Rebuild Ink Library", false, 200)]
 		public static void RebuildLibrary() {
 			InkLibrary.Rebuild();
 		}
 
-		[MenuItem("Assets/Recompile Ink", false, 61)]
+		[MenuItem("Assets/Recompile Ink", false, 201)]
 		public static void RecompileAll() {
 			var filesToRecompile = InkLibrary.FilesCompiledByRecompileAll().ToArray();
 			string logString = filesToRecompile.Any() ? 
@@ -74,12 +105,21 @@ namespace Ink.UnityIntegration {
 			InkCompiler.CompileInk(filesToRecompile);
 		}
 
+        public static void RecompileAllImmediately() {
+            var filesToRecompile = InkLibrary.FilesCompiledByRecompileAll().ToArray();
+            string logString = filesToRecompile.Any() ? 
+                                   "Recompile All Immediately will compile "+string.Join(", ", filesToRecompile.Select(x => Path.GetFileName(x.filePath)).ToArray()) :
+                                   "No valid ink found. Note that only files with 'Compile Automatic' checked are compiled if not set to compile all files automatically in InkSettings file.";
+            Debug.Log(logString);
+            InkCompiler.CompileInk(filesToRecompile, true, null);
+        }
+
 
 		[MenuItem("Assets/Create/Ink", false, 120)]
 		public static void CreateNewInkFile () {
 			string fileName = "New Ink.ink";
 			string filePath = AssetDatabase.GenerateUniqueAssetPath(Path.Combine(GetSelectedPathOrFallback(), fileName));
-			CreateNewInkFile(filePath, InkSettings.Instance.templateFilePath);
+			CreateNewInkFile(filePath, InkSettings.instance.templateFilePath);
 		}
 
 		public static void CreateNewInkFile (string filePath, string templateFileLocation) {
@@ -190,40 +230,9 @@ namespace Ink.UnityIntegration {
 			}
 			return true;
 		}
-
-		public static string GetInklecateFilePath () {
-			if(InkSettings.Instance.customInklecateOptions.inklecate != null) {
-				return Path.GetFullPath(AssetDatabase.GetAssetPath(InkSettings.Instance.customInklecateOptions.inklecate));
-			} else {
-				#if UNITY_EDITOR
-				#if UNITY_EDITOR_WIN
-				string inklecateName = "inklecate_win.exe";
-				#endif
-				// Unfortunately inklecate's implementation uses newer features of C# that aren't
-				// available in the version of mono that ships with Unity, so we can't make use of
-				// it. This means that we need to compile the mono runtime directly into it, inflating
-				// the size of the executable quite dramatically :-( Hopefully we can improve that
-				// when Unity ships with a newer version.
-				#if UNITY_EDITOR_OSX
-				string inklecateName = "inklecate_mac";
-				#endif
-				// Experimental linux build
-				#if UNITY_EDITOR_LINUX
-				string inklecateName = "inklecate_win.exe";
-				#endif
-				#endif
-				
-				string[] inklecateDirectories = Directory.GetFiles(Application.dataPath, inklecateName, SearchOption.AllDirectories);
-				if(inklecateDirectories.Length == 0)
-					return null;
-
-				return Path.GetFullPath(inklecateDirectories[0]);
-			}
-		}
 		
 		// Returns a sanitized version of the supplied string by:
 		//    - swapping MS Windows-style file separators with Unix/Mac style file separators.
-		//
 		// If null is provided, null is returned.
 		public static string SanitizePathString(string path) {
 			if (path == null) {
@@ -267,63 +276,19 @@ namespace Ink.UnityIntegration {
 		public static void DrawStoryPropertyField (Rect position, Story story, GUIContent label) {
 			Debug.LogWarning("DrawStoryPropertyField has been moved from InkEditorUtils to InkPlayerWindow");
 		}
-
-		public static bool FindOrCreateSingletonScriptableObjectOfType<T>(string defaultPath, out T obj) where T : ScriptableObject {
-			obj = FastFindAndEnforceSingletonScriptableObjectOfType<T>();
-			if (obj != null) return false;
-			// If we couldn't find the asset in the project, create a new one.
-			obj = CreateScriptableObject<T>(defaultPath);
-			Debug.Log("Created a new " + typeof(T).Name + " file at " + defaultPath + " because one was not found.");
-			return true;
-		}
-
-		static T CreateScriptableObject<T> (string defaultPath) where T : ScriptableObject {
-			var asset = ScriptableObject.CreateInstance<T>();
-			AssetDatabase.CreateAsset (asset, defaultPath);
-			AssetDatabase.SaveAssets ();
-			AssetDatabase.Refresh ();
-			return asset;
-		}
-
-		public static T FastFindAndEnforceSingletonScriptableObjectOfType<T> () where T : ScriptableObject {
-			return FindAndEnforceSingletonScriptableObjectOfType<T>();
-		}
-
-		static T FindAndEnforceSingletonScriptableObjectOfType<T> () where T : ScriptableObject {
-			string typeName = typeof(T).Name;
-			string[] GUIDs = AssetDatabase.FindAssets("t:"+typeName);
-			if(GUIDs.Length > 0) {
-				string path = AssetDatabase.GUIDToAssetPath(GUIDs[0]);
-				if(GUIDs.Length > 1) {
-					var remainingGUID = DeleteAllButOldestScriptableObjects(GUIDs, typeName);
-					path = AssetDatabase.GUIDToAssetPath(remainingGUID);
-				}
-				return AssetDatabase.LoadAssetAtPath<T>(path);
-			} 
-			return null;
-		}
-
-		public static string DeleteAllButOldestScriptableObjects (string[] GUIDs, string typeName) {
-			if(GUIDs.Length == 0) return null;
-			if(GUIDs.Length == 1) return GUIDs[0];
-			int oldestIndex = -1;
-			DateTime oldestTime = DateTime.Now;
-			for(int i = 0; i < GUIDs.Length; i++) {
-				var path = AssetDatabase.GUIDToAssetPath(GUIDs[i]);
-				var absolutePath = UnityRelativeToAbsolutePath(path);
-				var lastWriteTime = File.GetLastWriteTime(absolutePath);
-				if(oldestIndex == -1 || lastWriteTime < oldestTime) {
-					oldestTime = lastWriteTime;
-					oldestIndex = i;
-				}
+		
+		/// <summary>
+		/// Checks to see if the given path is an ink file or not, regardless of extension.
+		/// </summary>
+		/// <param name="path">The path to check.</param>
+		/// <returns>True if it's an ink file, otherwise false.</returns>
+		public static bool IsInkFile(string path) {
+			string extension = Path.GetExtension(path);
+			if (extension == InkEditorUtils.inkFileExtension) {
+				return true;
 			}
-			for(int i = 0; i < GUIDs.Length; i++) {
-				if(i == oldestIndex) continue;
-				var path = AssetDatabase.GUIDToAssetPath(GUIDs[i]);
-				AssetDatabase.DeleteAsset(path);
-			}
-			Debug.LogWarning("More than one "+typeName+" was found. Deleted newer excess asset instances.");
-			return GUIDs[oldestIndex];
+
+			return String.IsNullOrEmpty(extension) && InkLibrary.instance.inkLibrary.Exists(f => f.filePath == path);
 		}
 	}
 }

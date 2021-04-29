@@ -7,23 +7,64 @@ using Debug = UnityEngine.Debug;
 /// Provides helper functions to easily obtain these files.
 /// </summary>
 namespace Ink.UnityIntegration {
+    #if UNITY_2020_1_OR_NEWER
+    [FilePath("ProjectSettings/InkSettings.asset", FilePathAttribute.Location.ProjectFolder)]
+	public class InkSettings : ScriptableSingleton<InkSettings> {
+    #else
 	public class InkSettings : ScriptableObject {
+    #endif
+        #if !UNITY_2020_1_OR_NEWER
 		public static bool created {
 			get {
                 // If it's null, there's just no InkSettings asset in the project
-                return _Instance != null;
+                return _instance != null;
             }
 		}
-		private static InkSettings _Instance;
-		public static InkSettings Instance {
+		static string absoluteSavePath {
 			get {
-				if(_Instance == null) 
-					InkEditorUtils.FindOrCreateSingletonScriptableObjectOfType<InkSettings>(defaultPath, out _Instance);
-				Debug.Assert(_Instance != null, "InkSettings could not be created! This is a bug.");
-				return _Instance;
+				return System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath,"..","ProjectSettings","InkSettings.asset"));
+
 			}
 		}
-		public const string defaultPath = "Assets/InkSettings.asset";
+		public static void SaveStatic (bool saveAsText) {
+			UnityEditorInternal.InternalEditorUtility.SaveToSerializedFileAndForget(new[] { instance }, absoluteSavePath, saveAsText);
+		}
+        public void Save (bool saveAsText) {
+			UnityEditorInternal.InternalEditorUtility.SaveToSerializedFileAndForget((UnityEngine.Object[]) new InkSettings[1] {this}, absoluteSavePath, saveAsText);
+		}
+
+		private static InkSettings _instance;
+		public static InkSettings instance {
+			get {
+				if(_instance == null) {
+					Object[] objects = UnityEditorInternal.InternalEditorUtility.LoadSerializedFileAndForget(absoluteSavePath);
+					if (objects != null && objects.Length > 0) {
+						instance = objects[0] as InkSettings;
+					} else {
+						instance = ScriptableObject.CreateInstance<InkSettings>();
+						instance.Save(true);
+					}
+				}
+				return _instance;
+			} private set {
+                if(_instance == value) return;
+				_instance = value;
+			}
+		}
+        #else
+		public static void SaveStatic (bool saveAsText) {
+			instance.Save(saveAsText);
+		}
+        #endif
+
+        public class AssetSaver : UnityEditor.AssetModificationProcessor {
+            static string[] OnWillSaveAssets(string[] paths) {
+                InkSettings.instance.Save(true);
+                return paths;
+            }
+        }
+
+		
 		
 		public TextAsset templateFile;
 		public string templateFilePath {
@@ -33,6 +74,7 @@ namespace Ink.UnityIntegration {
 			}
 		}
 
+
         public DefaultAsset defaultJsonAssetPath;
 
         public bool compileAutomatically = true;
@@ -40,44 +82,33 @@ namespace Ink.UnityIntegration {
 		public bool handleJSONFilesAutomatically = true;
 
 		public int compileTimeout = 30;
-
-		public CustomInklecateOptions customInklecateOptions = new CustomInklecateOptions();
-		[System.Serializable]
-		public class CustomInklecateOptions {
-			#if UNITY_EDITOR_LINUX
-			public bool runInklecateWithMono = true;
-			#else
-			public bool runInklecateWithMono;
-			#endif
-			public string[] monoPaths = {
-				"/usr/bin/mono", 
-				"/usr/local/bin/mono", 
-				"/Library/Frameworks/Mono.framework/Versions/Current/Commands/mono"
-			};
-			public string additionalCompilerOptions;
-			public DefaultAsset inklecate;
-		}
+		
+		public bool printInkLogsInConsoleOnCompile;
 
 		#if UNITY_EDITOR && !UNITY_2018_1_OR_NEWER
 		[MenuItem("Edit/Project Settings/Ink", false, 500)]
 		public static void SelectFromProjectSettings() {
-			Selection.activeObject = Instance;
+			Selection.activeObject = instance;
 		}
 		#elif UNITY_EDITOR && UNITY_2018_1_OR_NEWER
 		public static SerializedObject GetSerializedSettings() {
-			return new SerializedObject(Instance);
+			return new SerializedObject(instance);
 		}
 		#endif
-
-
-	    private void OnEnable() {
-	        _Instance = this;
-	    }
-
-        private static void Save () {
-			EditorUtility.SetDirty(Instance);
-			AssetDatabase.SaveAssets();
-			EditorApplication.RepaintProjectWindow();
+        
+		// Deletes the persistent version of this asset that we used to use prior to 0.9.71
+		void OnEnable () {
+			if(!Application.isPlaying && EditorUtility.IsPersistent(this)) {
+				var path = AssetDatabase.GetAssetPath(this);
+				if(!string.IsNullOrEmpty(path)) {
+					#if !UNITY_2020_1_OR_NEWER
+                    if(_instance == this) _instance = null;
+					#endif
+                    AssetDatabase.DeleteAsset(AssetDatabase.GetAssetPath(this));
+					AssetDatabase.Refresh();
+					return;
+				}
+			}
 		}
 	}	
 }

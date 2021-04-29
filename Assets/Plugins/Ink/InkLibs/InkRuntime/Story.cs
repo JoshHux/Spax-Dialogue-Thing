@@ -16,7 +16,7 @@ namespace Ink.Runtime
         /// <summary>
         /// The current version of the ink story file format.
         /// </summary>
-        public const int inkVersionCurrent = 19;
+        public const int inkVersionCurrent = 20;
 
         // Version numbers are for engine itself and story file, rather
         // than the story state save format
@@ -88,6 +88,11 @@ namespace Ink.Runtime
         /// Any warnings generated during evaluation of the Story.
         /// </summary>
         public List<string> currentWarnings { get { return state.currentWarnings; } }
+
+        /// <summary>
+        /// The current flow name if using multi-flow funtionality - see SwitchFlow
+        /// </summary>
+        public string currentFlowName => state.currentFlowName;
 
         /// <summary>
         /// Whether the currentErrors list contains any errors.
@@ -331,6 +336,25 @@ namespace Ink.Runtime
 
             state.variablesState.SnapshotDefaultGlobals ();
         }
+
+        public void SwitchFlow(string flowName)
+        {
+            IfAsyncWeCant("switch flow");
+            if (_asyncSaving) throw new System.Exception("Story is already in background saving mode, can't switch flow to "+flowName);
+
+            state.SwitchFlow_Internal(flowName);
+        }
+
+        public void RemoveFlow(string flowName)
+        {
+            state.RemoveFlow_Internal(flowName);
+        }
+
+        public void SwitchToDefaultFlow()
+        {
+            state.SwitchToDefaultFlow_Internal();
+        }
+
 
         /// <summary>
         /// Continue the story for one line of content, if possible.
@@ -1880,6 +1904,11 @@ namespace Ink.Runtime
             if (value is int && typeof(T) == typeof(bool)) {
                 int intVal = (int)value;
                 return intVal == 0 ? false : true;
+            }
+
+            if (value is bool && typeof(T) == typeof(int)) {
+                bool boolVal = (bool)value;
+                return boolVal ? 1 : 0;
             }
 
             if (typeof(T) == typeof(string)) {
