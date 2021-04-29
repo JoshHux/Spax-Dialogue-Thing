@@ -38,6 +38,8 @@
   <ItemGroup>
      <Compile Include="Assets\TMP_Animated\Runtime\TMP_Animated.cs" />
      <Compile Include="Assets\_Project\_Scripts\_Monobehaviors\DialogueManager.cs" />
+     <Compile Include="Assets\Ink\Demos\Basic Demo\Scripts\BasicInkExample.cs" />
+     <Compile Include="Assets\Ink\Demos\Basic Demo\Scripts\QuitGameOnKeypress.cs" />
      <Compile Include="Assets\_Project\_Scripts\_Monobehaviors\DialogueActor.cs" />
      <Compile Include="Assets\_Project\_Scripts\_ScriptableObjects\_Code\ActorInfo.cs" />
      <None Include="Assets\TextMesh Pro\Shaders\TMPro.cginc" />
@@ -727,6 +729,10 @@
     <ProjectReference Include="Ink-Libraries.csproj">
       <Project>{5d2dd09b-9d7b-27cd-e637-75450fabe277}</Project>
       <Name>Ink-Libraries</Name>
+    </ProjectReference>
+    <ProjectReference Include="InkEditor.csproj">
+      <Project>{542eca5c-4bff-1d03-e362-c175de49d76e}</Project>
+      <Name>InkEditor</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
