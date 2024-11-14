@@ -1,0 +1,2 @@
+<enter=Lana,-1><face=Lana,1><enter=Signis,1><face=Signis,-1><move=Lana,-575,0.1><move=Signis,575,0.1><spk=Signis>Yo! Lana!<stop=0.7><emote=Signis,1> You think we have free will?
+<spk=Lana><spd=1>...<spd=50><emote=Lana,3> No.<emote=Signis,2>

@@ -233,8 +233,7 @@ MonoBehaviour:
   actorContainer: {fileID: 469559548}
   endedIndicator: {fileID: 1700576014}
   dialogueParent: {fileID: 1793583256}
-  textStuff: {fileID: 4900000, guid: e1d2f9eb09e4b884c83a8720d4c6b2d0, type: 3}
-  actors: []
+  textStuff: {fileID: 4900000, guid: 74496278034e51c40a8221284f4ee148, type: 3}
   inDialogue: 0
 --- !u!4 &244967310
 Transform:
@@ -377,9 +376,6 @@ MonoBehaviour:
   m_baseMaterial: {fileID: 0}
   m_maskOffset: {x: 0, y: 0, z: 0, w: 0}
   speed: 59
-  onTextReveal:
-    m_PersistentCalls:
-      m_Calls: []
   skip: 0
   isTyping: 0
 --- !u!222 &460594364
@@ -552,9 +548,6 @@ MonoBehaviour:
   m_baseMaterial: {fileID: 0}
   m_maskOffset: {x: 0, y: 0, z: 0, w: 0}
   speed: 40
-  onTextReveal:
-    m_PersistentCalls:
-      m_Calls: []
   skip: 0
   isTyping: 0
 --- !u!222 &728371875
@@ -597,6 +590,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_MoveRepeatDelay: 0.5
   m_MoveRepeatRate: 0.1
+  m_XRTrackingOrigin: {fileID: 0}
   m_ActionsAsset: {fileID: -944628639613478452, guid: ca9f5fa95ffab41fb9a615ab714db018, type: 3}
   m_PointAction: {fileID: 1054132383583890850, guid: ca9f5fa95ffab41fb9a615ab714db018, type: 3}
   m_MoveAction: {fileID: 3710738434707379630, guid: ca9f5fa95ffab41fb9a615ab714db018, type: 3}
@@ -610,6 +604,7 @@ MonoBehaviour:
   m_TrackedDeviceOrientationAction: {fileID: 1025543830046995696, guid: ca9f5fa95ffab41fb9a615ab714db018, type: 3}
   m_DeselectOnBackgroundClick: 1
   m_PointerBehavior: 0
+  m_CursorLockBehavior: 0
 --- !u!114 &770902852
 MonoBehaviour:
   m_ObjectHideFlags: 0
