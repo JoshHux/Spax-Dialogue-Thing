@@ -15,6 +15,14 @@ public class DialogueManager : MonoBehaviour
     //text object to display names
     public TMP_Animated nameText;
 
+    //text object to display Choices
+    public TMP_Animated choiceText;
+
+    //object that displays the dialogue choices
+    public GameObject choiceContainer;
+    //object that indicates what choice is selectec
+    public GameObject choiceIndicator;
+
     //parents the active dialogue actors
     public GameObject actorContainer;
 
@@ -35,6 +43,11 @@ public class DialogueManager : MonoBehaviour
 
     //are we doing dialogue right now?
     public bool inDialogue;
+
+    //are we making a choice right now?
+    public bool makingChoice;
+
+    private Choice m_selectedChoice;
 
     // Start is called before the first frame update
     void Start()
@@ -66,26 +79,63 @@ public class DialogueManager : MonoBehaviour
 
         //starts of not in a dialogue scene
         inDialogue = false;
+
+        //we're not expecting to make a decision yet
+        makingChoice = false;
     }
 
     // Update is called once per frame
     void Update()
     {
-        //placeholder function sdvance dialogue for testing purposes
-        if (Keyboard.current[Key.Space].wasPressedThisFrame && inDialogue)
+        if (inDialogue)
         {
-            //if the text is in the middle of displaying something
-            if (text.isTyping)
+            //plceholder to move index up or down depending on the selected item
+            if (this.makingChoice)
             {
-                //skip the text
-                SkipLine();
+
+                //this if statement is here so that we dont' need to run the following code every update while making a choice
+                //probably unecessarty since I doubt that this code generates that much work for it to be a concern, but it's nearly midnight and this is for peace of mind
+                if (Keyboard.current[Key.S].wasPressedThisFrame || Keyboard.current[Key.W].wasPressedThisFrame)
+                {
+                    //just some index shenanigans to make a scrolling select
+                    List<Choice> choices = this.story.currentChoices;
+
+                    int curIndex = this.m_selectedChoice.index;
+                    if (Keyboard.current[Key.S].wasPressedThisFrame)
+                    {
+                        curIndex += 1;
+                    }
+                    else if (Keyboard.current[Key.W].wasPressedThisFrame)
+                    {
+                        curIndex -= 1;
+                    }
+
+                    curIndex = (curIndex + choices.Count) % choices.Count;
+
+                    this.m_selectedChoice = choices[curIndex];
+
+                    //set the position of the selection thing
+                    this.choiceIndicator.transform.localPosition = new Vector3(this.choiceIndicator.transform.localPosition.x, 125 - this.m_selectedChoice.index * 68, this.choiceIndicator.transform.localPosition.z);
+                }
             }
-            else
+
+            //placeholder function sdvance dialogue for testing purposes
+            if (Keyboard.current[Key.Space].wasPressedThisFrame)
             {
-                //load the next line
-                LoadNextStoryLine();
-            }
-        } //placeholder, starts dialogue if none is going on
+                //if the text is in the middle of displaying something
+                if (text.isTyping)
+                {
+                    //skip the text
+                    SkipLine();
+                }
+                else
+                {
+                    //load the next line
+                    LoadNextStoryLine();
+                }
+            } //placeholder, starts dialogue if none is going on
+
+        }
         else if (Keyboard.current[Key.Enter].wasPressedThisFrame && !inDialogue)
         {
             StartDialogue();
@@ -152,19 +202,50 @@ public class DialogueManager : MonoBehaviour
         //turns off the indicator to be invisible
         endedIndicator.SetActive(false);
 
+        if (this.makingChoice)
+        {
+            this.makingChoice = false;
+            this.choiceContainer.SetActive(false);
+
+            this.story.ChooseChoiceIndex(this.m_selectedChoice.index);
+        }
+
         //if there is another line to display
         if (story.canContinue)
         {
             //get ned
             string line = story.Continue();
 
-            text.ReadText (line);
+            text.ReadText(line);
+
         }
         else
         //no more lines to display, end dialogue
         {
             EndDialogue();
         }
+    }
+
+    //call to display the current choices of the story
+    private void LoadChoices()
+    {
+        //Debug.Log("entered choice");
+
+        this.makingChoice = true;
+        this.choiceContainer.SetActive(true);
+
+        this.choiceText.text = "";
+
+        List<Choice> choices = this.story.currentChoices;
+
+        for (int i = 0; i < choices.Count; i++)
+        {
+            this.choiceText.text += choices[i].text + "\n";
+        }
+
+        //by default, the choice should be the first
+        this.m_selectedChoice = choices[0];
+
     }
 
     //callback
@@ -293,7 +374,7 @@ public class DialogueManager : MonoBehaviour
     {
         //hold gameobject that is being instantiated
         GameObject go =
-            Instantiate((GameObject) Resources.Load(e.name)) as GameObject;
+            Instantiate((GameObject)Resources.Load(e.name)) as GameObject;
 
         //gets the dialogue actor component
         DialogueActor da = go.GetComponent<DialogueActor>();
@@ -323,7 +404,7 @@ public class DialogueManager : MonoBehaviour
         renderer.color = Color.grey;
 
         //add object to the List
-        actors.Add (da);
+        actors.Add(da);
     }
 
     //callback
@@ -340,7 +421,7 @@ public class DialogueManager : MonoBehaviour
             GameObject go = da.gameObject;
 
             //removes the actor from the list, doens't destroy them
-            actors.Remove (da);
+            actors.Remove(da);
 
             //destroys the actor object
             da.MoveOffScreen();
@@ -361,6 +442,12 @@ public class DialogueManager : MonoBehaviour
     {
         //turns on the indicator so that it's visible
         endedIndicator.SetActive(true);
+
+        //this is when to display choices (if any)
+        if (story.currentChoices.Count > 0)
+        {
+            this.LoadChoices();
+        }
     }
 
     //Utility, call to force the tweens on the actors to complete
