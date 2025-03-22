@@ -1,0 +1,18 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d683e65009b8dbc43bea745b1484000a, type: 3}
+  m_Name: DL
+  m_EditorClassIdentifier: 
+  _itemName: Driver's License
+  _description: My driver's license. Without it, No one would know who I am.
+  _icon: {fileID: 0}
+  _picture: {fileID: 0}
