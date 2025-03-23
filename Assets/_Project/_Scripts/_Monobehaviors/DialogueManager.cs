@@ -6,6 +6,7 @@ using Ink.Runtime;
 using TMPro;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using Menu;
 
 public class DialogueManager : MonoBehaviour
 {
@@ -42,7 +43,7 @@ public class DialogueManager : MonoBehaviour
     private List<DialogueActor> actors;
 
     //are we doing dialogue right now?
-    public bool inDialogue;
+    //public bool inDialogue;
 
     //are we making a choice right now?
     public bool makingChoice;
@@ -78,7 +79,7 @@ public class DialogueManager : MonoBehaviour
         text.onDialogueStart += StartListener;
 
         //starts of not in a dialogue scene
-        inDialogue = false;
+        //inDialogue = false;
 
         //we're not expecting to make a decision yet
         makingChoice = false;
@@ -87,7 +88,7 @@ public class DialogueManager : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        if (inDialogue)
+        if (EnumHelper.IsMostOuterLayer(MenuLevel.DIALOGUE, MenuManager.Instance.Level))
         {
             //plceholder to move index up or down depending on the selected item
             if (this.makingChoice)
@@ -136,8 +137,10 @@ public class DialogueManager : MonoBehaviour
             } //placeholder, starts dialogue if none is going on
 
         }
-        else if (Keyboard.current[Key.Enter].wasPressedThisFrame && !inDialogue)
+        //we only want to overwrite the control if we're in the gameplay level
+        else if (Keyboard.current[Key.Enter].wasPressedThisFrame && !EnumHelper.IsMostOuterLayer(MenuLevel.DIALOGUE, MenuManager.Instance.Level))
         {
+            Debug.Log("starting dialogue");
             StartDialogue();
         }
     }
@@ -159,7 +162,7 @@ public class DialogueManager : MonoBehaviour
         dialogueParent.DOLocalMoveY(-364, 0.05f);
 
         //starting dialogue
-        inDialogue = true;
+        //inDialogue = true;
 
         //setting up the story object from its respective JSON
         story = new Story(textStuff.text);
@@ -170,6 +173,8 @@ public class DialogueManager : MonoBehaviour
         //initalizes story and sets it to the first needed line
         //calling the next line to actually start the dialogue
         LoadNextStoryLine();
+
+        MenuManager.Instance.EnterDialogue();
     }
 
     //call to end the dialogue
@@ -193,7 +198,9 @@ public class DialogueManager : MonoBehaviour
         dialogueParent.DOLocalMoveY(-900, 0.1f);
 
         //no longer in the middle of dialogue
-        inDialogue = false;
+        //inDialogue = false;
+
+        MenuManager.Instance.ExitDialogue();
     }
 
     //call this method to read the next line of dialogue
